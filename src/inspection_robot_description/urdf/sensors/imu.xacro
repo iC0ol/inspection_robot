@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="imu" params="x y z">
+
+    <!--
+      IMU 在真实机器人中通常很小，
+      当前用简单盒体表示安装位置。
+    -->
+    <link name="imu_link">
+
+      <visual>
+        <geometry>
+          <box size="0.04 0.03 0.01"/>
+        </geometry>
+
+        <material name="imu_green">
+          <color rgba="0.1 0.6 0.2 1.0"/>
+        </material>
+      </visual>
+
+    </link>
+
+    <joint name="imu_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="imu_link"/>
+
+      <origin
+        xyz="${x} ${y} ${z}"
+        rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+
+</robot>

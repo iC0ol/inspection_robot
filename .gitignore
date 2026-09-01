@@ -1,0 +1,17 @@
+# ROS2 colcon build artifacts
+build/
+install/
+log/
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+
+# ROS bags and generated files
+rosbag2_*/
+*.db3
+*.mcap

@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro
+    name="base"
+    params="length width height mass base_link_z">
+
+    <!--
+      base_footprint 是地面投影坐标系，没有 visual、collision 和质量。
+    -->
+    <link name="base_footprint"/>
+
+    <!-- 实际底盘刚体 -->
+    <link name="base_link">
+
+      <visual>
+        <geometry>
+          <box size="${length} ${width} ${height}"/>
+        </geometry>
+
+        <material name="base_blue">
+          <color rgba="0.2 0.45 0.8 1.0"/>
+        </material>
+      </visual>
+
+      <collision>
+        <geometry>
+          <box size="${length} ${width} ${height}"/>
+        </geometry>
+      </collision>
+
+      <!-- 长方体绕自身质心的惯性矩阵 -->
+      <inertial>
+        <mass value="${mass}"/>
+
+        <inertia
+          ixx="${mass * (width * width + height * height) / 12.0}"
+          ixy="0.0"
+          ixz="0.0"
+          iyy="${mass * (length * length + height * height) / 12.0}"
+          iyz="0.0"
+          izz="${mass * (length * length + width * width) / 12.0}"/>
+      </inertial>
+
+    </link>
+
+    <!-- base_link 位于地面上方 -->
+    <joint name="base_footprint_joint" type="fixed">
+      <parent link="base_footprint"/>
+      <child link="base_link"/>
+
+      <origin
+        xyz="0 0 ${base_link_z}"
+        rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+
+</robot>

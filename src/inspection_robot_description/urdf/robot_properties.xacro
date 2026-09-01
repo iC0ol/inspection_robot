@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- 底盘尺寸，单位均为 SI：米、千克 -->
+  <xacro:property name="base_length" value="0.32"/>
+  <xacro:property name="base_width"  value="0.24"/>
+  <xacro:property name="base_height" value="0.10"/>
+  <xacro:property name="base_mass"   value="4.0"/>
+
+  <!-- base_link 原点距离地面的高度 -->
+  <xacro:property name="base_link_z" value="0.08"/>
+
+  <!-- 左右驱动轮参数 -->
+  <xacro:property name="wheel_radius"     value="0.05"/>
+  <xacro:property name="wheel_width"      value="0.02"/>
+  <xacro:property name="wheel_mass"       value="0.30"/>
+  <xacro:property name="wheel_separation" value="0.28"/>
+
+  <!-- 轮子位于底盘中心的前后位置 -->
+  <xacro:property name="wheel_x" value="0.0"/>
+
+  <!--
+    轮子中心离地高度为 wheel_radius。
+    下面计算的是轮子相对 base_link 的 Z 坐标。
+  -->
+  <xacro:property
+    name="wheel_z"
+    value="${wheel_radius - base_link_z}"/>
+    
+      <!-- 2D 激光雷达相对于 base_link 的安装位置 -->
+  <xacro:property name="laser_x" value="0.10"/>
+  <xacro:property name="laser_y" value="0.0"/>
+  <xacro:property name="laser_z" value="0.15"/>
+
+  <!-- IMU 相对于 base_link 的安装位置 -->
+  <xacro:property name="imu_x" value="0.0"/>
+  <xacro:property name="imu_y" value="0.0"/>
+  <xacro:property name="imu_z" value="0.06"/>
+
+</robot>
