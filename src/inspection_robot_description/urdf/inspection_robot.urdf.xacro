@@ -13,6 +13,9 @@
   
   <xacro:include filename="sensors/laser.xacro"/>
   <xacro:include filename="sensors/imu.xacro"/>
+  
+  <!-- ros2_control 硬件与接口描述 -->
+  <xacro:include filename="ros2_control.xacro"/>
 
   <!-- 创建底盘 -->
   <xacro:base
@@ -53,4 +56,8 @@
     x="${imu_x}"
     y="${imu_y}"
     z="${imu_z}"/>
+    
+  <!-- ros2_control -->
+  <xacro:inspection_robot_ros2_control/>
+  
 </robot>

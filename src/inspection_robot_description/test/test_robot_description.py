@@ -113,3 +113,42 @@ def test_wheel_joint_types():
 
         assert joint is not None
         assert joint.attrib["type"] == "continuous"
+
+
+def test_ros2_control_wheel_interfaces():
+    """Drive wheels must expose the interfaces required by diff drive."""
+    root = generate_urdf_root()
+
+    ros2_control = root.find(
+        "./ros2_control[@name='InspectionRobotSystem']"
+    )
+
+    assert ros2_control is not None
+    assert ros2_control.attrib["type"] == "system"
+
+    hardware_plugin = ros2_control.find("./hardware/plugin")
+    assert hardware_plugin is not None
+    assert hardware_plugin.text == "mock_components/GenericSystem"
+
+    for joint_name in (
+        "left_wheel_joint",
+        "right_wheel_joint",
+    ):
+        joint = ros2_control.find(
+            f"./joint[@name='{joint_name}']"
+        )
+
+        assert joint is not None
+
+        command_interfaces = {
+            interface.attrib["name"]
+            for interface in joint.findall("command_interface")
+        }
+
+        state_interfaces = {
+            interface.attrib["name"]
+            for interface in joint.findall("state_interface")
+        }
+
+        assert command_interfaces == {"velocity"}
+        assert {"position", "velocity"}.issubset(state_interfaces)
