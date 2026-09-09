@@ -13,9 +13,12 @@
 # limitations under the License.
 
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import (
     Command,
     FindExecutable,
+    LaunchConfiguration,
     PathJoinSubstitution,
 )
 from launch_ros.actions import Node
@@ -24,6 +27,14 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description() -> LaunchDescription:
     """Launch the robot description and ros2_control stack."""
+    use_mock_imu = LaunchConfiguration("use_mock_imu")
+
+    declare_use_mock_imu = DeclareLaunchArgument(
+        "use_mock_imu",
+        default_value="true",
+        description="Start the mock IMU node.",
+    )
+
     robot_xacro = PathJoinSubstitution(
         [
             FindPackageShare("inspection_robot_description"),
@@ -37,6 +48,14 @@ def generate_launch_description() -> LaunchDescription:
             FindPackageShare("inspection_robot_bringup"),
             "config",
             "controllers.yaml",
+        ]
+    )
+
+    ekf_file = PathJoinSubstitution(
+        [
+            FindPackageShare("inspection_robot_bringup"),
+            "config",
+            "ekf.yaml",
         ]
     )
 
@@ -90,11 +109,30 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
     )
 
+    mock_imu_node = Node(
+        package="inspection_robot_sensors",
+        executable="mock_imu_node",
+        name="mock_imu_node",
+        output="screen",
+        condition=IfCondition(use_mock_imu),
+    )
+
+    ekf_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        parameters=[ekf_file],
+        output="screen",
+    )
+
     return LaunchDescription(
         [
+            declare_use_mock_imu,
             robot_state_publisher,
             control_node,
             joint_state_broadcaster_spawner,
             diff_drive_controller_spawner,
+            mock_imu_node,
+            ekf_node,
         ]
     )
