@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro
+    name="caster"
+    params="radius mass x y z">
+
+    <link name="caster_link">
+
+      <visual>
+        <geometry>
+          <sphere radius="${radius}"/>
+        </geometry>
+
+        <material name="caster_gray">
+          <color rgba="0.3 0.3 0.3 1.0"/>
+        </material>
+      </visual>
+
+      <collision>
+        <geometry>
+          <sphere radius="${radius}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <mass value="${mass}"/>
+
+        <inertia
+          ixx="${2.0 * mass * radius * radius / 5.0}"
+          ixy="0.0"
+          ixz="0.0"
+          iyy="${2.0 * mass * radius * radius / 5.0}"
+          iyz="0.0"
+          izz="${2.0 * mass * radius * radius / 5.0}"/>
+      </inertial>
+
+    </link>
+
+    <joint name="caster_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="caster_link"/>
+
+      <origin
+        xyz="${x} ${y} ${z}"
+        rpy="0 0 0"/>
+    </joint>
+
+    <!--
+      球形支撑轮本身不驱动。
+      降低地面摩擦，减少它对差速转向的阻碍。
+    -->
+    <gazebo reference="caster_link">
+      <mu1>0.01</mu1>
+      <mu2>0.01</mu2>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

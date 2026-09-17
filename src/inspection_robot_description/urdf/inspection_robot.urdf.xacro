@@ -3,6 +3,12 @@
 <robot
   name="inspection_robot"
   xmlns:xacro="http://www.ros.org/wiki/xacro">
+  
+  <!-- 选择 ros2_control 后端：
+       false = Mock GenericSystem
+       true  = GazeboSystem -->
+  <xacro:arg name="use_gazebo" default="false"/>
+  <xacro:arg name="controllers_file" default=""/>
 
   <!-- 参数表 -->
   <xacro:include filename="robot_properties.xacro"/>
@@ -10,6 +16,7 @@
   <!-- 可复用组件宏 -->
   <xacro:include filename="base.xacro"/>
   <xacro:include filename="wheel.xacro"/>
+  <xacro:include filename="caster.xacro"/>
   
   <xacro:include filename="sensors/laser.xacro"/>
   <xacro:include filename="sensors/imu.xacro"/>
@@ -23,7 +30,11 @@
     width="${base_width}"
     height="${base_height}"
     mass="${base_mass}"
-    base_link_z="${base_link_z}"/>
+    base_link_z="${base_link_z}"
+    chassis_x="${chassis_x}"
+    chassis_z="${chassis_z}"
+    com_x="${base_com_x}"
+    com_z="${base_com_z}"/>
 
   <!-- 创建左轮：ROS 坐标系中 Y 正方向为左侧 -->
   <xacro:wheel
@@ -44,12 +55,21 @@
     x="${wheel_x}"
     y="${-wheel_separation / 2.0}"
     z="${wheel_z}"/>
+    
+  <!-- 后部万向支撑球 -->
+  <xacro:caster
+    radius="${caster_radius}"
+    mass="${caster_mass}"
+    x="${caster_x}"
+    y="${caster_y}"
+    z="${caster_z}"/>
 
   <!-- 激光雷达 -->
   <xacro:laser
     x="${laser_x}"
     y="${laser_y}"
-    z="${laser_z}"/>
+    z="${laser_z}"
+    use_gazebo="$(arg use_gazebo)"/>
 
   <!-- IMU -->
   <xacro:imu
@@ -58,6 +78,8 @@
     z="${imu_z}"/>
     
   <!-- ros2_control -->
-  <xacro:inspection_robot_ros2_control/>
+  <xacro:inspection_robot_ros2_control 
+    use_gazebo="$(arg use_gazebo)"
+    controllers_file="$(arg controllers_file)"/>
   
 </robot>

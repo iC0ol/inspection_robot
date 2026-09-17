@@ -2,13 +2,25 @@
 
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="inspection_robot_ros2_control">
+  <xacro:macro
+  name="inspection_robot_ros2_control"
+  params="use_gazebo controllers_file">
 
     <ros2_control name="InspectionRobotSystem" type="system">
 
       <hardware>
-        <plugin>mock_components/GenericSystem</plugin>
-        <param name="calculate_dynamics">true</param>
+
+        <!-- Gazebo 仿真 -->
+        <xacro:if value="${use_gazebo}">
+          <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+        </xacro:if>
+
+        <!-- 默认 Mock Hardware -->
+        <xacro:unless value="${use_gazebo}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">true</param>
+        </xacro:unless>
+
       </hardware>
 
       <joint name="left_wheel_joint">
@@ -32,6 +44,23 @@
       </joint>
 
     </ros2_control>
+    
+    <xacro:if value="${use_gazebo}">
+
+      <gazebo>
+        <plugin
+          filename="libgazebo_ros2_control.so"
+          name="gazebo_ros2_control">
+
+          <robot_param>robot_description</robot_param>
+          <robot_param_node>robot_state_publisher</robot_param_node>
+
+          <parameters>${controllers_file}</parameters>
+
+        </plugin>
+      </gazebo>
+
+    </xacro:if>
 
   </xacro:macro>
 

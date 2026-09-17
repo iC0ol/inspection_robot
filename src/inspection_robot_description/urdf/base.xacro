@@ -4,7 +4,7 @@
 
   <xacro:macro
     name="base"
-    params="length width height mass base_link_z">
+    params="length width height mass base_link_z chassis_x chassis_z com_x com_z">
 
     <!--
       base_footprint 是地面投影坐标系，没有 visual、collision 和质量。
@@ -14,36 +14,53 @@
     <!-- 实际底盘刚体 -->
     <link name="base_link">
 
-      <visual>
-        <geometry>
-          <box size="${length} ${width} ${height}"/>
-        </geometry>
+    <visual>
+      <origin
+        xyz="${chassis_x} 0 ${chassis_z}"
+        rpy="0 0 0"/>
 
-        <material name="base_blue">
-          <color rgba="0.2 0.45 0.8 1.0"/>
-        </material>
-      </visual>
+      <geometry>
+        <box size="${length} ${width} ${height}"/>
+      </geometry>
 
-      <collision>
-        <geometry>
-          <box size="${length} ${width} ${height}"/>
-        </geometry>
-      </collision>
+      <material name="base_blue">
+        <color rgba="0.2 0.45 0.8 1.0"/>
+      </material>
+    </visual>
 
-      <!-- 长方体绕自身质心的惯性矩阵 -->
-      <inertial>
-        <mass value="${mass}"/>
 
-        <inertia
-          ixx="${mass * (width * width + height * height) / 12.0}"
-          ixy="0.0"
-          ixz="0.0"
-          iyy="${mass * (length * length + height * height) / 12.0}"
-          iyz="0.0"
-          izz="${mass * (length * length + width * width) / 12.0}"/>
-      </inertial>
+    <collision>
+      <origin
+        xyz="${chassis_x} 0 ${chassis_z}"
+        rpy="0 0 0"/>
 
-    </link>
+      <geometry>
+        <box size="${length} ${width} ${height}"/>
+      </geometry>
+    </collision>
+
+
+    <inertial>
+      <!--
+            惯性参考点设在简化后的质心。
+           当前仍用长方体惯量作为第一版物理近似。
+      -->
+      <origin
+        xyz="${com_x} 0 ${com_z}"
+        rpy="0 0 0"/>
+
+      <mass value="${mass}"/>
+
+      <inertia
+        ixx="${mass * (width * width + height * height) / 12.0}"
+        ixy="0.0"
+        ixz="0.0"
+        iyy="${mass * (length * length + height * height) / 12.0}"
+        iyz="0.0"
+        izz="${mass * (length * length + width * width) / 12.0}"/>
+    </inertial>
+
+  </link>
 
     <!-- base_link 位于地面上方 -->
     <joint name="base_footprint_joint" type="fixed">
