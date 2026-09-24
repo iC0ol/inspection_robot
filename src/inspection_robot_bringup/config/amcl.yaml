@@ -1,0 +1,51 @@
+amcl:
+  ros__parameters:
+
+    use_sim_time: true
+
+    # =========================
+    # TF frame
+    # =========================
+    global_frame_id: map
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+
+    # =========================
+    # 输入 topic
+    # =========================
+    scan_topic: scan
+    map_topic: map
+
+    # =========================
+    # 机器人运动模型
+    # =========================
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+
+    # =========================
+    # 激光模型
+    # =========================
+    laser_model_type: "likelihood_field"
+    laser_min_range: -1.0
+    laser_max_range: -1.0
+    max_beams: 60
+
+    # =========================
+    # 粒子滤波
+    # =========================
+    min_particles: 500
+    max_particles: 2000
+
+    # =========================
+    # 更新条件
+    # =========================
+    update_min_d: 0.25
+    update_min_a: 0.20
+
+    # =========================
+    # TF
+    # =========================
+    tf_broadcast: true
+    transform_tolerance: 1.0
+
+    # 先使用 RViz 2D Pose Estimate 指定初始位置
+    set_initial_pose: false

@@ -10,7 +10,15 @@ install(
     config
     worlds
     maps
+    rviz
   DESTINATION share/${PROJECT_NAME}
+)
+
+# 安装可执行 Python 脚本
+install(
+  PROGRAMS
+    scripts/plan_and_follow.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
@@ -23,6 +31,11 @@ if(BUILD_TESTING)
   ament_add_pytest_test(
     test_controllers_config
     test/test_controllers_config.py
+  )
+
+  ament_add_pytest_test(
+    test_nav2_config
+    test/test_nav2_config.py
   )
 
   add_launch_test(

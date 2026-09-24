@@ -29,6 +29,7 @@ class MockImuNode(Node):
         self.declare_parameter('left_wheel_name', 'left_wheel_joint')
         self.declare_parameter('right_wheel_name', 'right_wheel_joint')
         self.declare_parameter('imu_frame_id', 'imu_link')
+        self.declare_parameter('yaw_rate_deadband', 0.005)
 
         self.wheel_radius = (
             self.get_parameter('wheel_radius').get_parameter_value().double_value
@@ -52,6 +53,12 @@ class MockImuNode(Node):
             self.get_parameter(
                 'imu_frame_id'
             ).get_parameter_value().string_value
+        )
+
+        self.yaw_rate_deadband = (
+            self.get_parameter(
+                'yaw_rate_deadband'
+            ).get_parameter_value().double_value
         )
 
         self.imu_publisher = self.create_publisher(
@@ -88,6 +95,9 @@ class MockImuNode(Node):
             * (right_velocity - left_velocity)
             / self.wheel_separation
         )
+
+        if abs(yaw_rate) < self.yaw_rate_deadband:
+            yaw_rate = 0.0
 
         imu_message = Imu()
 
