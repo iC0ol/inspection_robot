@@ -11,7 +11,7 @@ Milestone M5: Autonomous Navigation
 Implemented and validated:
 
 * Differential-drive robot simulation in Gazebo Classic
-* `ros2\_control` based wheel control
+* `ros2_control` based wheel control
 * Robot state publishing and TF tree
 * EKF-based odometry fusion
 * Static map loading
@@ -63,8 +63,8 @@ LaserScan ----------->    AMCL
                        v         v
                   NavFn       DWB
                  Planner    Controller
-                       \\       /
-                        \\     /
+                       \       /
+                        \     /
                          v   v
                      BT Navigator
                           |
@@ -72,10 +72,10 @@ LaserScan ----------->    AMCL
                     NavigateToPose
                           |
                           v
-                      cmd\_vel
+                      cmd_vel
                           |
                           v
-               diff\_drive\_controller
+               diff_drive_controller
                           |
                           v
                          Robot
@@ -90,7 +90,7 @@ Wheel Odometry + IMU
         EKF
          |
          v
-odom -> base\_footprint
+odom -> base_footprint
 ```
 
 The complete TF chain is:
@@ -98,8 +98,8 @@ The complete TF chain is:
 ```text
 map
  └── odom
-      └── base\_footprint
-           └── base\_link
+      └── base_footprint
+           └── base_link
                 └── sensor frames
 ```
 
@@ -110,7 +110,7 @@ More details are available in [`docs/architecture.md`](docs/architecture.md).
 Build the workspace:
 
 ```bash
-cd \~/inspection\_robot\_ws
+cd ~/inspection_robot_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -118,7 +118,7 @@ source install/setup.bash
 Launch the complete simulation and navigation system:
 
 ```bash
-ros2 launch inspection\_robot\_bringup simulation\_navigation.launch.py
+ros2 launch inspection_robot_bringup simulation_navigation.launch.py
 ```
 
 The launch file starts:
@@ -153,7 +153,7 @@ map -> odom
 The EKF publishes:
 
 ```text
-odom -> base\_footprint
+odom -> base_footprint
 ```
 
 Together they provide the global robot pose used by Nav2.
@@ -163,7 +163,7 @@ Together they provide the global robot pose used by Nav2.
 The project currently uses:
 
 ```text
-nav2\_navfn\_planner/NavfnPlanner
+nav2_navfn_planner/NavfnPlanner
 ```
 
 The planner operates on the global costmap and produces the global path.
@@ -173,7 +173,7 @@ The planner operates on the global costmap and produces the global path.
 The local controller uses:
 
 ```text
-dwb\_core::DWBLocalPlanner
+dwb_core::DWBLocalPlanner
 ```
 
 DWB evaluates candidate robot trajectories while considering:
@@ -202,7 +202,7 @@ Local Costmap:
 
 ### Behavior Tree Navigation
 
-`bt\_navigator` coordinates high-level navigation using:
+`bt_navigator` coordinates high-level navigation using:
 
 * path computation
 * path following
@@ -219,11 +219,11 @@ The navigation pipeline supports periodic replanning when the environment change
 Important files:
 
 ```text
-inspection\_robot\_bringup/
+inspection_robot_bringup/
 ├── launch/
 │   ├── gazebo.launch.py
 │   ├── navigation.launch.py
-│   └── simulation\_navigation.launch.py
+│   └── simulation_navigation.launch.py
 │
 ├── config/
 │   ├── controllers.yaml
@@ -232,34 +232,34 @@ inspection\_robot\_bringup/
 │   ├── planner.yaml
 │   ├── controller.yaml
 │   ├── behavior.yaml
-│   └── bt\_navigator.yaml
+│   └── bt_navigator.yaml
 │
 ├── maps/
-│   └── inspection\_room\_v1.yaml
+│   └── inspection_room_v1.yaml
 │
 ├── rviz/
 │   └── navigation.rviz
 │
 ├── scripts/
-│   └── plan\_and\_follow.py
+│   └── plan_and_follow.py
 │
 └── test/
-    ├── test\_controllers\_config.py
-    ├── test\_diff\_drive\_runtime.test.py
-    └── test\_nav2\_config.py
+    ├── test_controllers_config.py
+    ├── test_diff_drive_runtime.test.py
+    └── test_nav2_config.py
 ```
 
-`plan\_and\_follow.py` is retained as a component-level diagnostic tool that bypasses BT Navigator and directly tests the Planner-to-Controller pipeline.
+`plan_and_follow.py` is retained as a component-level diagnostic tool that bypasses BT Navigator and directly tests the Planner-to-Controller pipeline.
 
 ## Testing
 
 Run the project tests with:
 
 ```bash
-cd \~/inspection\_robot\_ws
+cd ~/inspection_robot_ws
 
-colcon test \\
-  --packages-select inspection\_robot\_bringup inspection\_robot\_sensors
+colcon test \
+  --packages-select inspection_robot_bringup inspection_robot_sensors
 
 colcon test-result --verbose
 ```
