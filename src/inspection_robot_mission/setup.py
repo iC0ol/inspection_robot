@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'mission_manager = inspection_robot_mission.mission_manager:main',
         ],
     },
 )
