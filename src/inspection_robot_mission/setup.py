@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mission_manager = inspection_robot_mission.mission_manager:main',
+            'mock_nav2_server = inspection_robot_mission.mock_nav2_server:main',
         ],
     },
 )

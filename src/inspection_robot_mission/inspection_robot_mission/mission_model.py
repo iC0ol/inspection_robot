@@ -27,6 +27,7 @@ class WaypointStatus(Enum):
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
     RETRY_PENDING = "RETRY_PENDING"
+    CANCELED = "CANCELED"
 
 
 class RetryExhaustedPolicy(Enum):
@@ -56,6 +57,7 @@ ALLOWED_TRANSITIONS = {
     WaypointStatus.SUCCEEDED: set(),
     WaypointStatus.FAILED: set(),
     WaypointStatus.SKIPPED: set(),
+    WaypointStatus.CANCELED: set(),
 }
 
 
@@ -226,3 +228,27 @@ class InspectionMission:
             index, WaypointStatus.FAILED
         )
         return False
+
+    def cancel(self):
+        """Cancel a running mission and its current waypoint."""
+        if self.state != MissionStatus.RUNNING:
+            raise ValueError("只有 RUNNING 状态的任务允许取消")
+
+        if not 0 <= self.current_index < len(self.waypoints):
+            raise RuntimeError("当前没有可取消的站点")
+
+        index = self.current_index
+        status = self.waypoint_states[index]
+
+        cancelable_states = {
+            WaypointStatus.PENDING,
+            WaypointStatus.NAVIGATING,
+            WaypointStatus.RETRY_PENDING,
+            WaypointStatus.INSPECTING,
+        }
+
+        if status not in cancelable_states:
+            raise ValueError("当前站点状态不允许取消")
+
+        self.waypoint_states[index] = WaypointStatus.CANCELED
+        self.state = MissionStatus.CANCELED

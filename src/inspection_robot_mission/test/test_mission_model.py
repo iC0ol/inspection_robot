@@ -396,3 +396,95 @@ def test_skip_last_waypoint_finishes_mission():
     assert mission.current_index == 1
     assert mission.waypoint_states[0] == WaypointStatus.SKIPPED
     assert mission.state == MissionStatus.COMPLETED_WITH_SKIPS
+
+
+def test_cancel_pending_waypoint():
+    """Cancel a mission before navigation begins."""
+    mission = make_mission()
+    mission.start()
+    mission.cancel()
+
+    assert mission.state == MissionStatus.CANCELED
+    assert mission.waypoint_states[0] == WaypointStatus.CANCELED
+    assert mission.current_index == 0
+
+
+def test_cancel_navigating_waypoint():
+    """Cancel the currently navigating waypoint."""
+    mission = make_mission()
+    mission.start()
+
+    mission.transition_waypoint(0, WaypointStatus.NAVIGATING)
+    mission.cancel()
+
+    assert mission.state == MissionStatus.CANCELED
+    assert mission.waypoint_states == [
+        WaypointStatus.CANCELED,
+        WaypointStatus.PENDING,
+        WaypointStatus.PENDING,
+    ]
+
+    with pytest.raises(ValueError, match="RUNNING"):
+        mission.advance_to_next_waypoint()
+
+
+def test_cancel_inspecting_waypoint():
+    """Cancel a mission during its inspection action."""
+    mission = make_mission()
+    mission.start()
+
+    mission.transition_waypoint(0, WaypointStatus.NAVIGATING)
+    mission.transition_waypoint(0, WaypointStatus.INSPECTING)
+    mission.cancel()
+
+    assert mission.state == MissionStatus.CANCELED
+    assert mission.waypoint_states[0] == WaypointStatus.CANCELED
+
+
+def test_cancel_retry_pending_waypoint():
+    """Cancel a mission while waiting for navigation retry."""
+    mission = make_mission()
+    mission.start()
+
+    mission.transition_waypoint(0, WaypointStatus.NAVIGATING)
+    assert mission.record_navigation_failure(0) is True
+
+    mission.cancel()
+
+    assert mission.state == MissionStatus.CANCELED
+    assert mission.waypoint_states[0] == WaypointStatus.CANCELED
+
+
+def test_cancel_before_start_rejected():
+    """Reject cancellation when a mission has not started."""
+    mission = make_mission()
+
+    with pytest.raises(ValueError, match="RUNNING"):
+        mission.cancel()
+
+    assert mission.state == MissionStatus.IDLE
+
+
+def test_cancel_completed_mission_rejected():
+    """Reject cancellation after successful mission completion."""
+    mission = make_mission()
+    mission.start()
+
+    for index in range(len(mission.waypoints)):
+        mission.transition_waypoint(
+            index, WaypointStatus.NAVIGATING
+        )
+        mission.transition_waypoint(
+            index, WaypointStatus.INSPECTING
+        )
+        mission.transition_waypoint(
+            index, WaypointStatus.SUCCEEDED
+        )
+        mission.advance_to_next_waypoint()
+
+    assert mission.state == MissionStatus.SUCCEEDED
+
+    with pytest.raises(ValueError, match="RUNNING"):
+        mission.cancel()
+
+    assert mission.state == MissionStatus.SUCCEEDED
