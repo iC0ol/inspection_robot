@@ -17,6 +17,9 @@
 
 import math
 
+import time
+from rclpy.signals import SignalHandlerOptions
+
 import rclpy
 from action_msgs.msg import GoalStatus
 from nav2_msgs.action import NavigateToPose
@@ -25,6 +28,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from functools import partial
 from std_srvs.srv import Trigger
+from rclpy.parameter import Parameter
 
 from inspection_robot_mission.mission_model import (
     InspectionMission,
@@ -42,9 +46,18 @@ class MissionManager(Node):
         """Initialize the mission and Nav2 Action client."""
         super().__init__('mission_manager')
 
-        self.declare_parameter('waypoints_x')
-        self.declare_parameter('waypoints_y')
-        self.declare_parameter('waypoints_yaw')
+        self.declare_parameter(
+            'waypoints_x',
+            Parameter.Type.DOUBLE_ARRAY,
+        )
+        self.declare_parameter(
+            'waypoints_y',
+            Parameter.Type.DOUBLE_ARRAY,
+        )
+        self.declare_parameter(
+            'waypoints_yaw',
+            Parameter.Type.DOUBLE_ARRAY,
+        )
         self.declare_parameter('wait_seconds', 2.0)
 
         self.declare_parameter('max_navigation_retries', 2)
@@ -244,7 +257,10 @@ class MissionManager(Node):
             self.goal_handle = future.result()
         except Exception as exc:
             self.active_goal_serial = None
-            self.fail_mission(f'Goal 请求异常: {exc}')
+            self.fail_mission(
+                f'Goal 请求异常: {exc}',
+                navigation_unknown=True,
+            )
             return
 
         if not self.goal_handle.accepted:
@@ -318,7 +334,8 @@ class MissionManager(Node):
             response = future.result()
         except Exception as exc:
             self.fail_mission(
-                f'获取导航 Result 失败: {exc}'
+                f'获取导航 Result 失败: {exc}',
+                navigation_unknown=True,
             )
             return
 
@@ -416,49 +433,74 @@ class MissionManager(Node):
         )
         self.send_current_goal()
 
-    def fail_mission(self, reason):
-        """Terminate the mission after an unrecoverable failure."""
+    def fail_mission(self, reason, navigation_unknown=False):
+        """Fail the mission and clean up local timers."""
         if self.finished:
             return
 
         self.get_logger().error(reason)
 
-        index = self.mission.current_index
-        status = self.mission.waypoint_states[index]
+        # 1. 禁止尚未执行的 Timer 再触发。
+        for timer_name in ('wait_timer', 'retry_timer'):
+            timer = getattr(self, timer_name)
 
-        if status in (
-            WaypointStatus.PENDING,
-            WaypointStatus.NAVIGATING,
-            WaypointStatus.RETRY_PENDING,
-            WaypointStatus.INSPECTING,
+            if timer is not None:
+                timer.cancel()
+                self.destroy_timer(timer)
+                setattr(self, timer_name, None)
+
+        # 2. 区分任务失败和导航状态未知。
+        if (
+            navigation_unknown
+            or self.active_goal_serial is not None
         ):
-            self.mission.transition_waypoint(
-                index, WaypointStatus.FAILED
+            self.get_logger().error(
+                '无法确认 Nav2 Goal 已停止！'
+                'Mission FAILED 不代表机器人已安全停车，'
+                '请检查机器人运动和 Nav2 状态'
             )
+
+        # 3. 将当前站点标记为失败。
+        index = self.mission.current_index
+
+        if (
+            self.mission.state == MissionStatus.RUNNING
+            and 0 <= index < len(self.mission.waypoints)
+        ):
+            status = self.mission.waypoint_states[index]
+
+            if status in (
+                WaypointStatus.PENDING,
+                WaypointStatus.NAVIGATING,
+                WaypointStatus.RETRY_PENDING,
+                WaypointStatus.INSPECTING,
+            ):
+                self.mission.transition_waypoint(
+                    index,
+                    WaypointStatus.FAILED,
+                )
+
+        # 4. 结束本地任务调度。
+        self.finished = True
 
         self.get_logger().error(
             f'Mission: {self.mission.state.value}'
         )
 
-        self.finished = True
-
     def request_stop(self):
-        """Attempt to cancel the currently active Nav2 goal."""
-        self.stopping = True
+        """Request graceful mission cancellation on Ctrl+C."""
+        accepted, message = self.begin_mission_cancel()
 
-        if self.goal_handle is None or not self.navigation_active:
-            return
-
-        future = self.goal_handle.cancel_goal_async()
-
-        if rclpy.ok():
-            rclpy.spin_until_future_complete(
-                self, future, timeout_sec=3.0
+        if accepted:
+            self.get_logger().warn(
+                f'Ctrl+C: {message}'
+            )
+        else:
+            self.get_logger().warn(
+                f'Ctrl+C: {message}，不再发起取消'
             )
 
-        self.get_logger().warn(
-            '已尝试取消导航，请确认机器人停止'
-        )
+        return accepted
 
     def handle_navigation_abort(self):
         """Handle navigation failure using the configured policy."""
@@ -557,48 +599,11 @@ class MissionManager(Node):
         self.send_current_goal()
 
     def cancel_service_callback(self, request, response):
-        """Accept a request to cancel the current mission."""
-        if (
-            self.finished
-            or self.stopping
-            or self.mission.state != MissionStatus.RUNNING
-        ):
-            response.success = False
-            response.message = 'Mission 不在可取消状态'
-            return response
+        """Handle a cancellation request from the ROS2 service."""
+        accepted, message = self.begin_mission_cancel()
 
-        # 立即禁止继续派发新的导航 Goal。
-        self.stopping = True
-        self.get_logger().warn('收到 Mission 取消请求')
-
-        # 停止等待巡检或等待重试的 Timer。
-        for timer_name in ('wait_timer', 'retry_timer'):
-            timer = getattr(self, timer_name)
-
-            if timer is not None:
-                timer.cancel()
-                self.destroy_timer(timer)
-                setattr(self, timer_name, None)
-
-        if self.active_goal_serial is None:
-            # 当前没有尚未结束的导航 Goal。
-            self.finalize_mission_cancel()
-            response.message = 'Mission 已取消，无活动导航 Goal'
-
-        elif self.goal_handle is None:
-            # Goal 已发出，但尚未收到接受或拒绝响应。
-            response.message = (
-                '取消请求已受理，等待 Goal 接受响应'
-            )
-
-        else:
-            # Goal 已被接受，异步请求 Nav2 取消。
-            self.request_nav_cancel()
-            response.message = (
-                '取消请求已受理，等待 Nav2 最终 Result'
-            )
-
-        response.success = True
+        response.success = accepted
+        response.message = message
         return response
 
     def request_nav_cancel(self):
@@ -704,22 +709,96 @@ class MissionManager(Node):
 
         return response
 
+    def begin_mission_cancel(self):
+        """Begin cancellation through a common control path."""
+        if (
+            self.finished
+            or self.stopping
+            or self.mission.state != MissionStatus.RUNNING
+        ):
+            return False, 'Mission 不在可取消状态'
+
+        self.stopping = True
+        self.get_logger().warn('收到 Mission 取消请求')
+
+        # 取消巡检等待和导航重试 Timer。
+        for timer_name in ('wait_timer', 'retry_timer'):
+            timer = getattr(self, timer_name)
+
+            if timer is not None:
+                timer.cancel()
+                self.destroy_timer(timer)
+                setattr(self, timer_name, None)
+
+        # 没有待完成的导航 Goal。
+        if self.active_goal_serial is None:
+            self.finalize_mission_cancel()
+            return True, 'Mission 已取消，无活动导航 Goal'
+
+        # Goal 请求已发送，但还没收到接受响应。
+        if self.goal_handle is None:
+            return True, '取消请求已受理，等待 Goal 接受响应'
+
+        # Goal 已接受，请求 Nav2 取消。
+        self.request_nav_cancel()
+        return True, '取消请求已受理，等待 Nav2 最终 Result'
+
 
 def main(args=None):
-    """Start the mission manager node."""
-    rclpy.init(args=args)
+    """Run the mission and handle graceful Ctrl+C shutdown."""
+    rclpy.init(
+        args=args,
+        signal_handler_options=SignalHandlerOptions.NO,
+    )
+
     node = None
 
     try:
         node = MissionManager()
         node.start()
 
+        # 正常执行 Mission。
         while rclpy.ok() and not node.finished:
             rclpy.spin_once(node, timeout_sec=0.1)
 
-    except (KeyboardInterrupt, ExternalShutdownException):
-        if node is not None and rclpy.ok():
+    except KeyboardInterrupt:
+        if node is not None and rclpy.ok() and not node.finished:
+            node.get_logger().warn(
+                '检测到 Ctrl+C，开始请求取消 Mission'
+            )
+
             node.request_stop()
+
+            # 继续处理 Action 回调，等待取消结果。
+            # 设置上限，避免退出过程无限阻塞。
+            deadline = time.monotonic() + 15.0
+
+            try:
+                while (
+                    rclpy.ok()
+                    and not node.finished
+                    and time.monotonic() < deadline
+                ):
+                    rclpy.spin_once(
+                        node, timeout_sec=0.1
+                    )
+
+            except KeyboardInterrupt:
+                node.get_logger().error(
+                    '再次收到 Ctrl+C，提前退出等待'
+                )
+
+            if not node.finished:
+                node.get_logger().error(
+                    '退出等待已结束，但未确认 Nav2 Goal '
+                    '停止；机器人可能仍在运动！'
+                )
+
+    except ExternalShutdownException:
+        if node is not None:
+            node.get_logger().error(
+                'ROS Context 已关闭，无法保证取消请求完成'
+            )
 
     finally:
         if node is not None:

@@ -194,17 +194,16 @@ class InspectionMission:
 
         # 记录当前站点的一次导航失败
         self.navigation_failures[index] += 1
-
         failures = self.navigation_failures[index]
 
-        # 仍然有剩余重试机会
+        # 情况1：还有剩余重试机会
         if failures <= self.max_navigation_retries:
             self.waypoint_states[index] = (
                 WaypointStatus.RETRY_PENDING
             )
             return True
 
-        # 超过重试预算时，允许根据策略跳过当前站点
+        # 情况2：重试耗尽，策略为跳过当前站点
         if (
             self.retry_exhausted_policy
             == RetryExhaustedPolicy.SKIP_WAYPOINT
@@ -217,13 +216,7 @@ class InspectionMission:
 
             return False
 
-        # 默认策略：结束整个任务
-        self.transition_waypoint(
-            index, WaypointStatus.FAILED
-        )
-        return False
-
-        # 超过重试预算，进入最终失败
+        # 情况3：重试耗尽，策略为结束整个任务
         self.transition_waypoint(
             index, WaypointStatus.FAILED
         )

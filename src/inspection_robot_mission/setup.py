@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='asus',
     maintainer_email='646162259@qq.com',
-    description='TODO: Package description',
+    description='ROS 2 waypoint inspection mission management with Nav2',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
