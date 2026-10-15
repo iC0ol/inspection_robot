@@ -2,11 +2,11 @@
 
 A ROS 2 based autonomous mobile robot project for navigation and inspection tasks.
 
-The project is developed incrementally from simulation toward a low-cost physical differential-drive robot. The current version focuses on a complete autonomous navigation pipeline in Gazebo Classic using ROS 2 Humble and Nav2.
+The project is developed incrementally from simulation toward a low-cost physical differential-drive robot. M5 provides autonomous navigation in Gazebo Classic using ROS 2 Humble and Nav2; M6 adds sequential waypoint inspection missions, retry/skip policies, cancellation, and status reporting.
 
 ## Current Status
 
-Milestone M5: Autonomous Navigation
+Milestone M6: Inspection Mission Management (built on M5 autonomous navigation)
 
 Implemented and validated:
 
@@ -29,6 +29,10 @@ Implemented and validated:
 * Automatic AMCL initialization for simulation
 * One-command simulation navigation startup
 * Automated configuration and runtime tests
+* Sequential multi-waypoint mission execution using `NavigateToPose`
+* Configurable bounded retries (`FAIL_MISSION` / `SKIP_WAYPOINT`)
+* Mission cancellation and live status services
+* Standalone mock Nav2 server and automated mission tests
 
 ## Environment
 
@@ -104,6 +108,7 @@ map
 ```
 
 More details are available in [`docs/architecture.md`](docs/architecture.md).
+For the mission controller, see [`docs/mission_manager.md`](docs/mission_manager.md).
 
 ## Quick Start
 
@@ -139,6 +144,41 @@ The launch file starts:
 After startup, use **2D Goal Pose** in RViz to send a navigation goal.
 
 The simulation uses a predefined AMCL initial pose corresponding to the current inspection-room map.
+
+### Run a waypoint inspection mission (M6)
+
+Start the integrated simulation above and wait until Nav2 localization and navigation are ready. In a second terminal, use the **same `ROS_DOMAIN_ID`**:
+
+```bash
+cd ~/inspection_robot_ws
+source install/setup.bash
+# Use the same ROS Domain as Nav2; change 73 if your Nav2 uses another domain.
+export ROS_DOMAIN_ID=73
+ros2 run inspection_robot_mission mission_manager --ros-args \
+  -p use_sim_time:=true \
+  -p waypoints_x:='[0.0, 1.0]' \
+  -p waypoints_y:='[0.0, 0.0]' \
+  -p waypoints_yaw:='[0.0, 0.0]' \
+  -p wait_seconds:=2.0 \
+  -p max_navigation_retries:=2 \
+  -p retry_delay_seconds:=2.0 \
+  -p retry_exhausted_policy:=FAIL_MISSION
+```
+
+**The coordinates above are examples, not guaranteed reachable poses.**
+Replace them with valid map-frame coordinates in your map.
+`max_navigation_retries` counts additional attempts after the first attempt.
+
+While the mission runs, query or request cancellation from another terminal in the same ROS Domain:
+
+```bash
+ros2 service call /mission/status std_srvs/srv/Trigger '{}'
+ros2 service call /mission/cancel std_srvs/srv/Trigger '{}'
+```
+
+The manager exits after the mission reaches a terminal state; the status service then disappears.
+A successful cancel-service response acknowledges a **request**, not a confirmed physical stop.
+For a Gazebo-free mock example, see [Mission Manager documentation](docs/mission_manager.md).
 
 ## Navigation Components
 
@@ -251,6 +291,27 @@ inspection_robot_bringup/
 
 `plan_and_follow.py` is retained as a component-level diagnostic tool that bypasses BT Navigator and directly tests the Planner-to-Controller pipeline.
 
+### Mission package (M6)
+
+```text
+src/inspection_robot_mission/
+├── inspection_robot_mission/
+│   ├── mission_model.py
+│   ├── mission_manager.py
+│   └── mock_nav2_server.py
+├── test/
+│   ├── conftest.py
+│   ├── test_mission_model.py
+│   ├── test_mission_manager_errors.py
+│   ├── test_mission_retry.py
+│   ├── test_mission_retry_exhaustion.py
+│   ├── test_mission_skip.py
+│   ├── test_mission_cancel.py
+│   └── test_mission_cancel_rejected.py
+├── package.xml
+└── setup.py
+```
+
 ## Testing
 
 Run the project tests with:
@@ -259,7 +320,7 @@ Run the project tests with:
 cd ~/inspection_robot_ws
 
 colcon test \
-  --packages-select inspection_robot_bringup inspection_robot_sensors
+  --packages-select inspection_robot_bringup inspection_robot_sensors inspection_robot_mission
 
 colcon test-result --verbose
 ```
@@ -275,6 +336,9 @@ The test suite currently checks areas including:
 * DWB controller configuration
 * Behavior Server configuration
 * BT Navigator configuration
+* mission state-machine transitions and retry/skip policies
+* mocked Action integration: retry, exhaustion, skip and cancellation
+* rejected cancellation and exception-injection handling
 
 ## Known Limitations
 
@@ -286,6 +350,10 @@ Current limitations include:
 * the simulated IMU is currently generated from wheel motion rather than a physically independent IMU sensor model
 * dynamic obstacle handling currently relies on Nav2 costmaps and replanning
 * hardware deployment has not yet been completed
+* M6 currently provides one-shot mission execution, not a persistent scheduler
+* inspection is currently a timed wait, not sensor data acquisition
+* mission history and terminal status are not persisted after node exit
+* Mission `FAILED` / `CANCELED` must not be treated as proof of physical stopping
 
 These limitations will be addressed in later milestones.
 
@@ -294,9 +362,9 @@ These limitations will be addressed in later milestones.
 Planned future work includes:
 
 * navigation system robustness improvements
-* waypoint-based inspection missions
-* autonomous patrol logic
-* inspection task management
+* mission configuration files and persistent history
+* periodic patrol scheduling and pause/resume
+* real sensor inspection actions and result storage
 * hardware abstraction and real robot deployment
 * physical IMU and sensor integration
 * fault handling and diagnostics

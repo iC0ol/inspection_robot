@@ -13,6 +13,7 @@ The navigation stack is separated into several layers:
 5. Planning
 6. Local control
 7. Behavior coordination
+8. Mission orchestration (M6)
 
 This separation allows individual components to be tested independently.
 
@@ -373,7 +374,7 @@ or
 Behavior Tree orchestration
 ```
 
-## 13. Current M5 Navigation Pipeline
+## 13. M5 Navigation Pipeline (Foundation for M6)
 
 The complete validated pipeline is:
 
@@ -424,3 +425,96 @@ odom -> base_footprint        |
 ```
 
 BT Navigator coordinates the planner, controller, and recovery behaviors above this pipeline.
+
+## 14. M6 Mission Management Layer
+
+M6 adds a mission orchestration layer **above** Nav2 without replacing the M5
+navigation stack. Localization, costmaps, path planning, recovery behaviors, and
+velocity control remain the responsibility of the existing Nav2 system.
+
+```text
+                  Operator / UI
+                 /            \
+      /mission/status       /mission/cancel
+               \              /
+                v            v
+             Mission Manager
+          (sequence, retry, skip,
+           wait, cancel, status)
+                      |
+                      | NavigateToPose Action
+                      v
+              Nav2 BT Navigator
+                      |
+             M5 navigation stack
+                      |
+                      v
+                Robot motion
+```
+
+### 14.1 Responsibility Boundaries
+
+- `mission_model.py` maintains mission and waypoint states, retry budgets,
+  and failure policies without requiring ROS communication.
+- `mission_manager.py` translates model decisions into asynchronous Nav2
+  Action goals, ROS timers, cancellation handling, and status services.
+- `mock_nav2_server.py` supplies configurable fake `NavigateToPose` results
+  for automated integration tests without Gazebo.
+
+The Mission Manager executes a **one-shot** mission; it is not yet a
+persistent fleet, scheduling, or inspection-data collection service.
+
+### 14.2 Mission State Transitions
+
+Normal waypoint progression:
+
+```text
+PENDING -> NAVIGATING -> INSPECTING -> SUCCEEDED
+                 |
+                 +-- ABORTED -> RETRY_PENDING -> NAVIGATING
+                 |
+                 +-- retry exhausted -> FAILED or SKIPPED
+```
+
+The mission finishes as `SUCCEEDED`, `FAILED`, `CANCELED`, or
+`COMPLETED_WITH_SKIPS` according to the configured outcome. `PAUSED` is
+reserved in the model, but pause/resume is not implemented.
+
+`max_navigation_retries` specifies additional attempts after the initial
+navigation attempt. Exhaustion can fail the full mission (`FAIL_MISSION`)
+or skip a waypoint (`SKIP_WAYPOINT`).
+
+### 14.3 Communication Interfaces
+
+| Interface | Type | Purpose |
+| --- | --- | --- |
+| `/navigate_to_pose` | `nav2_msgs/action/NavigateToPose` | Dispatch navigation goals |
+| `/mission/cancel` | `std_srvs/srv/Trigger` | Request mission cancellation |
+| `/mission/status` | `std_srvs/srv/Trigger` | Query running mission state |
+
+Cancellation is asynchronous. While an Action goal remains unresolved,
+the status service can report `mission=RUNNING` together with
+`phase=CANCEL_REQUESTED`. When the mission terminates, the current
+Mission Manager process exits, so status history is not retained.
+
+**Safety boundary:** A returned service response or an internal mission
+terminal state does not prove that the physical robot has stopped.
+Uncertain Nav2 Action results require additional motion-state verification
+and independent safety measures on real hardware.
+
+### 14.4 Automated Verification
+
+The M6 test suite includes model unit tests, callback exception-injection
+tests, and `launch_testing` integration tests for retry, retry exhaustion,
+skip, accepted cancellation, and rejected cancellation.
+
+ROS Domain isolation during the pytest session is provided through
+`domain_coordinator` and `test/conftest.py`. Run the package tests with:
+
+```bash
+colcon test --packages-select inspection_robot_mission
+colcon test-result --verbose
+```
+
+See [`mission_manager.md`](mission_manager.md) for the detailed architecture,
+configuration parameters, test scenarios, and execution instructions.
